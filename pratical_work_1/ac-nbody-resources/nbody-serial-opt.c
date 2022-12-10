@@ -40,11 +40,6 @@ double mod(vector a){
 	return sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
 }
 ////////////////////////////////////////////////////////////////////////
-double mod3(vector a){
-	double mod2 = (a.x * a.x + a.y * a.y + a.z * a.z); 
-	return sqrt(mod2) * mod2;
-}
-////////////////////////////////////////////////////////////////////////
 void initSystemFromRandom(){
 	GLOBAL_masses = (double*)malloc(GLOBAL_numBodies*sizeof(double));
 	GLOBAL_positions = (vector*)malloc(GLOBAL_numBodies*sizeof(vector));
@@ -87,9 +82,10 @@ void computeAccelerations(){
 	for(int i = 0; i < GLOBAL_numBodies - 1; i++){
 		for(int j = i + 1; j < GLOBAL_numBodies; j++){
 			vector distance = subtractVectors(GLOBAL_positions[j], GLOBAL_positions[i]);
-			vector force = scaleVector(CONST_GravConstant / mod3(distance), distance);
-			GLOBAL_accelerations[i] = addVectors(GLOBAL_accelerations[i], scaleVector(GLOBAL_masses[j], force));
-			GLOBAL_accelerations[j] = addVectors(GLOBAL_accelerations[j], scaleVector(-GLOBAL_masses[i], force));
+			double distance_mod3 = pow(mod(distance), 3);
+
+			GLOBAL_accelerations[i] = addVectors(GLOBAL_accelerations[i], scaleVector(CONST_GravConstant * GLOBAL_masses[j] / distance_mod3, distance));
+			GLOBAL_accelerations[j] = addVectors(GLOBAL_accelerations[j], scaleVector(CONST_GravConstant * -GLOBAL_masses[i] / distance_mod3, distance));
 		}
 	}
 }
