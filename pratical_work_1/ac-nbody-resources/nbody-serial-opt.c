@@ -24,10 +24,6 @@ vector addVectors(vector a, vector b){
 	return (vector){a.x + b.x, a.y + b.y, a.z + b.z};
 }
 //////////////////////////////////////////////////////////////////////// 
-vector invertVector(vector a){
-	return (vector){-a.x, -a.y, -a.z};
-}
-//////////////////////////////////////////////////////////////////////// 
 vector scaleVector(double b, vector a){
 	return (vector){b * a.x, b * a.y, b * a.z};
 }
