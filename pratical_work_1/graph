@@ -1,0 +1,27 @@
+digraph "callgraph" {
+  F562cef91ce80 [label="addVectors\n6 189 300 000"];
+  F562cef91d1d0 [label="resolveCollisions\n3 509 103 000"];
+  F562cef91d870 [label="scaleVector\n5 920 200 000"];
+  F562cef91ddd0 [label="mod\n4 171 050 000"];
+  F562cef91f730 [label="simulate\n60 431 202 000"];
+  F562cef91fe90 [label="computeAccelerations\n56 672 592 000"];
+  F562cef921180 [label="main\n60 431 202 000"];
+  F562cef9229d0 [label="subtractVectors\n3 229 200 000"];
+  F562cef923270 [label="0x00000000001090e0\n17 356 950 000"];
+  F562cef92afe0 [label="__ieee754_pow_fma\n14 262 300 000"];
+  F562cef92c330 [label="pow@@GLIBC_2.29\n17 087 850 000"];
+  F562cef92c690 [label="0x0000000004865300\n14 531 400 000"];
+  F562cef937f60 [label="(below main)\n60 431 202 000"];
+  F562cef91f730 -> F562cef91d1d0 [weight=3,label="3 509 103 000 (3 000x)"];
+  F562cef91f730 -> F562cef91fe90 [weight=3,label="56 672 592 000 (3 000x)"];
+  F562cef91fe90 -> F562cef91ce80 [weight=3,label="6 189 300 000 (269 100 000x)"];
+  F562cef91fe90 -> F562cef91d870 [weight=3,label="5 920 200 000 (269 100 000x)"];
+  F562cef91fe90 -> F562cef91ddd0 [weight=3,label="4 171 050 000 (134 550 000x)"];
+  F562cef91fe90 -> F562cef9229d0 [weight=3,label="3 229 200 000 (134 550 000x)"];
+  F562cef91fe90 -> F562cef923270 [weight=3,label="17 356 950 000 (134 550 000x)"];
+  F562cef921180 -> F562cef91f730 [weight=3,label="60 431 202 000 (3 000x)"];
+  F562cef923270 -> F562cef92c330 [weight=3,label="17 087 850 000 (134 550 000x)"];
+  F562cef92c330 -> F562cef92c690 [weight=3,label="14 531 400 000 (134 550 000x)"];
+  F562cef92c690 -> F562cef92afe0 [weight=3,label="14 262 300 000 (134 550 000x)"];
+  F562cef937f60 -> F562cef921180 [weight=3,label="60 431 202 000 (1x)"];
+}
