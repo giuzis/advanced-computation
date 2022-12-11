@@ -1,19 +1,5 @@
 command:
-    scaleVector(CONST_GravConstant * -GLOBAL_masses[i] / distance_mod3, distance)
+    gcc -Wall -O0 -g nbody-serial-opt.c -lm -o nbody-serial-opt.exe 
+    valgrind --tool=callgrind ./nbody-serial-opt.exe 300 3000
 
-output valgrind:
-    ==34155== HEAP SUMMARY:
-    ==34155==     in use at exit: 24,000 bytes in 4 blocks
-    ==34155==   total heap usage: 5 allocs, 1 frees, 25,024 bytes allocated
-    ==34155== 
-    ==34155== LEAK SUMMARY:
-    ==34155==    definitely lost: 0 bytes in 0 blocks
-    ==34155==    indirectly lost: 0 bytes in 0 blocks
-    ==34155==      possibly lost: 0 bytes in 0 blocks
-    ==34155==    still reachable: 24,000 bytes in 4 blocks
-    ==34155==         suppressed: 0 bytes in 0 blocks
-    ==34155== Reachable blocks (those to which a pointer was found) are not shown.
-    ==34155== To see them, rerun with: --leak-check=full --show-leak-kinds=all
-    ==34155== 
-    ==34155== For lists of detected and suppressed errors, rerun with: -s
-    ==34155== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+
