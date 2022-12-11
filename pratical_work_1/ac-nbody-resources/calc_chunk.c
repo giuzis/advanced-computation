@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <math.h>
 
-#define N_BODIES 4000
-#define N_THREADS 8
+#define N_BODIES 300
+#define N_THREADS 4
 #define WORK_AMOUNT (N_BODIES*(N_BODIES - 1)/(2))
 #define CHUNK_SIZE (WORK_AMOUNT/( N_THREADS))
 

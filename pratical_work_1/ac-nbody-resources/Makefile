@@ -11,7 +11,10 @@ CFLAGS=-Wall -O2
 
 #use the 1st line in alternative to the 2nd (use 2nd only if SDL bgi installed)
 #all: nbody-serial.exe nbody-threads.exe 
-all: nbody-serial.exe nbody-serial-opt.exe nbody-threads.exe  nbody-serial-gui.exe
+all: nbody-serial.exe nbody-serial-opt.exe nbody-threads.exe  nbody-serial-gui.exe calc_chunk.exe
+
+calc_chunk.exe: calc_chunk.c
+	$(CC) $(CFLAGS) calc_chunk.c $(MFLAGS) -o calc_chunk.exe 
 
 nbody-serial.exe: nbody-serial.c
 	$(CC) $(CFLAGS) nbody-serial.c $(MFLAGS) -o nbody-serial.exe 
