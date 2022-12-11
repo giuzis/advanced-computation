@@ -12,8 +12,6 @@ typedef struct{
  
 int GLOBAL_numBodies=15; // default number of bodies
 int GLOBAL_numSteps=30000; // default number of time steps (1 million)
-int TOTAL_WORK = GLOBAL_numBodies*(GLOBAL_numBodies - 1)/(2); 
-int WORK_PER_THREAD = TOTAL_WORK/(N_THREADS); 
 
 int GLOBAL_windowWidth=800; // default window width is 800 pixels
 int GLOBAL_windowHeight=800; // default window height is 800 pixels
@@ -144,11 +142,6 @@ void computeAccelerations(int start, int end){
 			if(i != j)
 				GLOBAL_accelerations[i] = addVectors(GLOBAL_accelerations[i], GLOBAL_partial_accelerations[i][j]);			
 	}
-
-	for(int j = 0; j < GLOBAL_numBodies; j++){
-		GLOBAL_accelerations[j] = addVectors(GLOBAL_accelerations[j], local_accelerations[j]);
-	}
-
 }
 //////////////////////////////////////////////////////////////////////// 
 void computeVelocities(int start, int end){
@@ -228,9 +221,6 @@ int main(int argC,char* argV[]){
 		printf("Usage : %s [numBodies numSteps [windowWidth windowHeight]]\n",argV[0]);
 		exit(1);
 	}
-
-	TOTAL_WORK = GLOBAL_numBodies*(GLOBAL_numBodies - 1)/(2); 
-	WORK_PER_THREAD = TOTAL_WORK/(N_THREADS); 
 		
 	srand(randSeed);
 	initSystemFromRandom();
@@ -262,4 +252,3 @@ int main(int argC,char* argV[]){
 	return 0;
 }
  
-
