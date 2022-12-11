@@ -11,7 +11,7 @@ CFLAGS=-Wall -O0
 
 #use the 1st line in alternative to the 2nd (use 2nd only if SDL bgi installed)
 #all: nbody-serial.exe nbody-threads.exe 
-all: nbody-serial.exe nbody-serial-opt.exe nbody-threads.exe  nbody-serial-gui.exe calc_chunk.exe
+all: nbody-serial.exe nbody-serial-opt.exe nbody-threads.exe nbody-serial-gui.exe calc_chunk.exe nbody-threads-test.exe
 
 calc_chunk.exe: calc_chunk.c
 	$(CC) $(CFLAGS) calc_chunk.c $(MFLAGS) -o calc_chunk.exe 
@@ -22,12 +22,15 @@ nbody-serial.exe: nbody-serial.c
 nbody-serial-opt.exe: nbody-serial-opt.c
 	$(CC) $(CFLAGS) nbody-serial-opt.c $(MFLAGS) -o nbody-serial-opt.exe 
 
-#nbody-threads.exe: nbody-threads.c
-#	$(CC) $(CFLAGS) nbody-threads.c $(MFLAGS) $(TFLAGS) -o nbody-threads.exe
+nbody-threads.exe: nbody-threads.c
+	$(CC) $(CFLAGS) nbody-threads.c $(MFLAGS) $(TFLAGS) -o nbody-threads.exe
+
+nbody-threads-test.exe: nbody-threads-test.c
+	$(CC) $(CFLAGS) nbody-threads-test.c $(MFLAGS) $(TFLAGS) -o nbody-threads-test.exe
 
 #uncomment the following two lines only if SDL bgi is installed
-#nbody-serial-gui.exe: nbody-serial-gui.c
-#	$(CC) $(CFLAGS) nbody-serial-gui.c $(MFLAGS) $(GFLAGS) -o nbody-serial-gui.exe
+nbody-serial-gui.exe: nbody-serial-gui.c
+	$(CC) $(CFLAGS) nbody-serial-gui.c $(MFLAGS) $(GFLAGS) -o nbody-serial-gui.exe
 
 clean:
 	rm -f *.exe *.o a.out
