@@ -9,6 +9,7 @@
 //user defined datatypes
 typedef struct {unsigned char r, g, b;} rgb_t;
 
+
 ////////////////////////////////////////////////////////////////////////
 //global variables
 //(do not change from the defaults except if solicited in the work text)
