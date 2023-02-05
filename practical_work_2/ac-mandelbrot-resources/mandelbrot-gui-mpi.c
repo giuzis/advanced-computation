@@ -4,6 +4,7 @@
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
+#include <mpi.h>
 
 ////////////////////////////////////////////////////////////////////////
 //user defined datatypes
@@ -33,6 +34,10 @@ int GLOBAL_window_height=768;
 int GLOBAL_refresh=1;
 int GLOBAL_max_iter = 256;
 int GLOBAL_tex_size=0;
+
+// GLOBAL mpi variables
+int GLOBAL_numtasks, GLOBAL_rank, GLOBAL_r;
+
 
 ////////////////////////////////////////////////////////////////////////
 //function prototypes
@@ -226,6 +231,10 @@ void mouseclick(int button, int state, int x, int y)
 	//print_menu(); // uncomment for convenience; comment for benchmarking
 }
 
+int worker_mouseclick(void){
+	
+}
+
 ////////////////////////////////////////////////////////////////////////
 void keypress(unsigned char key, int x, int y)
 {
@@ -345,10 +354,21 @@ void init_gfx(int *c, char **v)
 }
 
 ////////////////////////////////////////////////////////////////////////
-int main(int c, char **v)
-{
-	init_gfx(&c, v);
-	print_menu();
-	glutMainLoop();	
+int main(int c, char **v){
+	// init mpi
+	MPI_Init(&c, &v);
+	MPI_Comm_size(MPI_COMM_WORLD, &GLOBAL_numtasks);
+	MPI_Comm_rank(MPI_COMM_WORLD, &GLOBAL_rank);
+
+	if (GLOBAL_rank == 0) {
+		// init gfx
+		init_gfx(&c, v);
+		print_menu();
+		glutMainLoop();
+	} else {
+		set_texture();
+		while 
+	}
+	MPI_Finalize();
 	return 0;
 }
