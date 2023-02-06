@@ -164,12 +164,12 @@ void alloc_tex()
 		// a texture has GLOBAL_tex_h pointers to the begining of each line,
 		// followed by the GLOBAL_tex_h lines of the image (bottom to top);
         // each line is sequence of GLOBAL_tex_w*3 bytes (each pixel RGB values)
+	
+		// update pointers in the beggining of the texture
+		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + GLOBAL_tex_h), i = 1; i < GLOBAL_tex_h; i++)
+			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_tex_w;
+			// uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
     }
-  
-    // update pointers in the beggining of the texture
-	for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + GLOBAL_tex_h), i = 1; i < GLOBAL_tex_h; i++)
-		GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_tex_w;
-		// uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
 }
 
 ////////////////////////////////////////////////////////////////////////

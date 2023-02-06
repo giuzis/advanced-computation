@@ -4,22 +4,15 @@
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include <mpi.h>
 
 ////////////////////////////////////////////////////////////////////////
 //user defined datatypes
 typedef struct {unsigned char r, g, b;} rgb_t;
-
 typedef struct {
 	int color_rotate, height, invert, max_iter, refresh, saturation, tex_h, tex_size, tex_w, width;
 	double cx, cy, scale;
 } global_parameters_t;
 
-MPI_Datatype PARAMETERS_TYPE; // global_parameters_t
-
-////////////////////////////////////////////////////////////////////////
-//global variables
-//(do not change from the defaults except if solicited in the work text)
 global_parameters_t GLOBAL_parameters = {
 	   0,  // int GLOBAL_parameters.color_rotate = 0;
 	 512,  // int GLOBAL_parameters.height = 512;
@@ -33,11 +26,13 @@ global_parameters_t GLOBAL_parameters = {
 	 512,  // int GLOBAL_parameters.width = 512;
 	-0.6,  // double GLOBAL_parameters.cx = -.6;
 	   0,  // double GLOBAL_parameters.cy = 0;
-  1./256   // double GLOBAL_parameters.scale = 1;
+   1./256   // double GLOBAL_parameters.scale = 1./256;
 };
+////////////////////////////////////////////////////////////////////////
+//global variables
+//(do not change from the defaults except if solicited in the work text)
 
 rgb_t **GLOBAL_tex = 0;
-
 int GLOBAL_gwin;
 GLuint GLOBAL_texture;
 
@@ -48,9 +43,6 @@ int GLOBAL_zoomin[GLOBAL_zoomin_num_pairs]={538,237,491,369,522,383,492,372,504,
 int GLOBAL_window_width=1024;
 int GLOBAL_window_height=768;
 
-// GLOBAL mpi variables
-int GLOBAL_numtasks, GLOBAL_rank;
-
 ////////////////////////////////////////////////////////////////////////
 //function prototypes
 void render();
@@ -60,7 +52,7 @@ void resize(int w, int h);
 void init_gfx(int *c, char **v);
 
 void alloc_tex();
-int set_texture();
+void set_texture();
 
 void hsv_to_rgb(int hue, int min, int max, rgb_t *p);
 void calc_mandel();
@@ -129,23 +121,18 @@ void hsv_to_rgb(int hue, int min, int max, rgb_t *p)
 }
 
 ////////////////////////////////////////////////////////////////////////
-void calc_mandel(){	
-	int min = GLOBAL_parameters.max_iter, max = 0;
-	double zx, zy, zx2, zy2;
+void calc_mandel() 
+{	
+	int i, j, iter, min, max;
 	rgb_t *px;
-
-	int height = (
-		(GLOBAL_parameters.height / GLOBAL_numtasks) 
-		+ ((GLOBAL_parameters.height % GLOBAL_numtasks) * (GLOBAL_rank == 0)) 
-	);
-
-	for (int i = 0; i < height; i++) {
+	double x, y, zx, zy, zx2, zy2;
+	min = GLOBAL_parameters.max_iter; max = 0;
+	for (i = 0; i < GLOBAL_parameters.height; i++) {
 		px = GLOBAL_tex[i];
-		double y = (
-			(i + (GLOBAL_rank * height) - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy);
-		for (int j = 0; j  < GLOBAL_parameters.width; j++, px++) {
-			double x = (j - GLOBAL_parameters.width/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
-			int iter = 0;
+		y = (i - GLOBAL_parameters.height/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy;
+		for (j = 0; j  < GLOBAL_parameters.width; j++, px++) {
+			x = (j - GLOBAL_parameters.width/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
+			iter = 0;
  
 			zx = hypot(x - .25, y);
 			if (x < zx - 2 * zx * zx + .25) iter = GLOBAL_parameters.max_iter;
@@ -163,61 +150,55 @@ void calc_mandel(){
 			*(unsigned short *)px = iter;
 		}
 	}
-	for (int i = 0; i < height; i++){
-		px = GLOBAL_tex[i];
-		for (int j = 0; j  < GLOBAL_parameters.width; j++, px++)
+ 
+	for (i = 0; i < GLOBAL_parameters.height; i++)
+		for (j = 0, px = GLOBAL_tex[i]; j  < GLOBAL_parameters.width; j++, px++)
 			hsv_to_rgb(*(unsigned short*)px, min, max, px);			
-	}
-
-	int size = height * GLOBAL_parameters.width * 3;
-	if (GLOBAL_rank == 0)
-		MPI_Gather(MPI_IN_PLACE, -1, NULL, GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-	else
-		MPI_Gather(GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, NULL, -1, NULL, 0, MPI_COMM_WORLD);
 }
 
 ////////////////////////////////////////////////////////////////////////
-void alloc_tex(){
-	int i, ow = GLOBAL_parameters.tex_w, oh = GLOBAL_parameters.tex_h; //backup current texture dimensions
-	int tex_w = 1, tex_h = 1;
+void alloc_tex()
+{
+	int i, ow = GLOBAL_parameters.tex_w, oh = GLOBAL_parameters.tex_h;
+	       //backup current texture dimensions
 
-	while(tex_w < GLOBAL_parameters.width) tex_w <<= 1;
-	while(tex_h < GLOBAL_parameters.height) tex_h <<= 1;
-
-	GLOBAL_parameters.tex_w = tex_w;
-	GLOBAL_parameters.tex_h = tex_h;
-
-	int new_tex_h = GLOBAL_parameters.tex_h;
-
-	if (GLOBAL_rank != 0) new_tex_h /= GLOBAL_numtasks;
-
+    // if necessary, adjust texture dimensions to image dimensions 
+	for (GLOBAL_parameters.tex_w = 1; GLOBAL_parameters.tex_w < GLOBAL_parameters.width;  GLOBAL_parameters.tex_w <<= 1);
+	for (GLOBAL_parameters.tex_h = 1; GLOBAL_parameters.tex_h < GLOBAL_parameters.height; GLOBAL_parameters.tex_h <<= 1);
+ 
+    // if texture dimensions were changed, realloc the texture memory block (GLOBAL_tex)
 	if (GLOBAL_parameters.tex_h != oh || GLOBAL_parameters.tex_w != ow) {
-		GLOBAL_parameters.tex_size = new_tex_h * sizeof(rgb_t*) + new_tex_h * GLOBAL_parameters.tex_w * 3;
+	    GLOBAL_parameters.tex_size = GLOBAL_parameters.tex_h * sizeof(rgb_t*) + GLOBAL_parameters.tex_h * GLOBAL_parameters.tex_w * 3;
 		GLOBAL_tex = realloc(GLOBAL_tex, GLOBAL_parameters.tex_size);
-
-		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + new_tex_h), i = 1; i < new_tex_h; i++)
-			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_parameters.tex_w;   // uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
-	}
+		// a texture has GLOBAL_parameters.tex_h pointers to the begining of each line,
+		// followed by the GLOBAL_parameters.tex_h lines of the image (bottom to top);
+        // each line is sequence of GLOBAL_parameters.tex_w*3 bytes (each pixel RGB values)
+	
+		// update pointers in the beggining of the texture
+		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + GLOBAL_parameters.tex_h), i = 1; i < GLOBAL_parameters.tex_h; i++)
+			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_parameters.tex_w;
+			// uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
+    }
 }
 
-////////////////////////////////////////////////////////////////////////~
-int set_texture(){
-	MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
-	
-	if (GLOBAL_parameters.refresh) alloc_tex();
-	
+////////////////////////////////////////////////////////////////////////
+void set_texture()
+{
+	if (GLOBAL_parameters.refresh)
+		alloc_tex();
+
 	calc_mandel();
  
-	if (GLOBAL_parameters.refresh && GLOBAL_rank == 0) {
+	if (GLOBAL_parameters.refresh) {
 		glEnable(GL_TEXTURE_2D);
 		glBindTexture(GL_TEXTURE_2D, GLOBAL_texture);
-		glTexImage2D(GL_TEXTURE_2D, 0, 3, GLOBAL_parameters.tex_w, GLOBAL_parameters.tex_h, 0, GL_RGB, GL_UNSIGNED_BYTE, GLOBAL_tex[0]);
+		glTexImage2D(GL_TEXTURE_2D, 0, 3, GLOBAL_parameters.tex_w, GLOBAL_parameters.tex_h,
+			0, GL_RGB, GL_UNSIGNED_BYTE, GLOBAL_tex[0]);
+ 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		render();
 	}
-
-	return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -356,7 +337,8 @@ void render()
 
 ////////////////////////////////////////////////////////////////////////
 
-void init_gfx(int *c, char **v){
+void init_gfx(int *c, char **v)
+{
 	glutInit(c, v);
 	glutInitDisplayMode(GLUT_RGB);
 	glutInitWindowSize(GLOBAL_window_width, GLOBAL_window_height);
@@ -372,45 +354,10 @@ void init_gfx(int *c, char **v){
 }
 
 ////////////////////////////////////////////////////////////////////////
-void setup_parameter_type(){
-    int blockcounts[2]; MPI_Aint offsets[2]; MPI_Datatype oldtypes[2];
-	// setup blockcounts and oldtypes 
-	blockcounts[0] = 10; oldtypes[0] = MPI_INT; 
-	blockcounts[1] = 3; oldtypes[1] = MPI_DOUBLE; 
-	
-	// setup displacements
-	global_parameters_t parameters; MPI_Aint base_address;
-	MPI_Get_address(&parameters, &base_address); 
-	MPI_Get_address(&parameters.color_rotate, &offsets[0]); 
-	MPI_Get_address(&parameters.cx, &offsets[1]);
-
-	offsets[0] = MPI_Aint_diff(offsets[0], base_address);
-	offsets[1] = MPI_Aint_diff(offsets[1], base_address);
-
-	// create structured derived data type
-	MPI_Type_create_struct(2, blockcounts, offsets, oldtypes, &PARAMETERS_TYPE);
-	MPI_Type_commit(&PARAMETERS_TYPE);
-}
-////////////////////////////////////////////////////////////////////////
-int main(int c, char **v){
-	// init mpi
-	MPI_Init(&c, &v);
-	MPI_Comm_size(MPI_COMM_WORLD, &GLOBAL_numtasks);
-	MPI_Comm_rank(MPI_COMM_WORLD, &GLOBAL_rank);
-	
-	// init parameters
-	setup_parameter_type();
-	
-	// create mpi datatype for struct
-	if (GLOBAL_rank == 0){
-		init_gfx(&c, v);
-		print_menu();
-		glutMainLoop();
-	}
-	else{
-		while (set_texture());
-	}
-	MPI_Type_free(&PARAMETERS_TYPE);
-	MPI_Finalize();
+int main(int c, char **v)
+{
+	init_gfx(&c, v);
+	print_menu();
+	glutMainLoop();	
 	return 0;
 }
