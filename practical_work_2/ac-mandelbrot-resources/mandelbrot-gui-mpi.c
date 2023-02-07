@@ -130,7 +130,7 @@ void hsv_to_rgb(int hue, int min, int max, rgb_t *p)
 
 ////////////////////////////////////////////////////////////////////////
 void calc_mandel(){	
-	int min = GLOBAL_parameters.max_iter, max = 0;
+	int min = GLOBAL_parameters.max_iter, max = 0, i, j;
 	double zx, zy, zx2, zy2;
 	rgb_t *px;
 
@@ -139,11 +139,11 @@ void calc_mandel(){
 		+ ((GLOBAL_parameters.height % GLOBAL_numtasks) * (GLOBAL_rank == 0)) 
 	);
 
-	for (int i = 0; i < height; i++) {
+	for (i = 0; i < height; i++) {
 		px = GLOBAL_tex[i];
 		double y = (
 			(i + (GLOBAL_rank * height) - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy);
-		for (int j = 0; j  < GLOBAL_parameters.width; j++, px++) {
+		for (j = 0; j  < GLOBAL_parameters.width; j++, px++) {
 			double x = (j - GLOBAL_parameters.width/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
 			int iter = 0;
  
@@ -163,9 +163,9 @@ void calc_mandel(){
 			*(unsigned short *)px = iter;
 		}
 	}
-	for (int i = 0; i < height; i++){
+	for (i = 0; i < height; i++){
 		px = GLOBAL_tex[i];
-		for (int j = 0; j  < GLOBAL_parameters.width; j++, px++)
+		for (j = 0; j  < GLOBAL_parameters.width; j++, px++)
 			hsv_to_rgb(*(unsigned short*)px, min, max, px);			
 	}
 
@@ -181,21 +181,21 @@ void alloc_tex(){
 	int i, ow = GLOBAL_parameters.tex_w, oh = GLOBAL_parameters.tex_h; //backup current texture dimensions
 	int tex_w = 1, tex_h = 1;
 
-	while(tex_w < GLOBAL_parameters.width) tex_w <<= 1;
-	while(tex_h < GLOBAL_parameters.height) tex_h <<= 1;
+	int new_height = GLOBAL_parameters.height;
+
+	if (GLOBAL_rank != 0) new_height /= GLOBAL_numtasks; // get the height for each task that is not rank 0
+
+	while(tex_w < GLOBAL_parameters.width) tex_w <<= 1; // smallest power of two >= width
+	while(tex_h < new_height) tex_h <<= 1; // smallest power of two >= height
 
 	GLOBAL_parameters.tex_w = tex_w;
 	GLOBAL_parameters.tex_h = tex_h;
 
-	int new_tex_h = GLOBAL_parameters.tex_h;
-
-	if (GLOBAL_rank != 0) new_tex_h /= GLOBAL_numtasks;
-
-	if (GLOBAL_parameters.tex_h != oh || GLOBAL_parameters.tex_w != ow) {
-		GLOBAL_parameters.tex_size = new_tex_h * sizeof(rgb_t*) + new_tex_h * GLOBAL_parameters.tex_w * 3;
+	if (GLOBAL_parameters.tex_h != oh || GLOBAL_parameters.tex_w != ow) { // if the dimensions are the different than before, realocate
+		GLOBAL_parameters.tex_size = GLOBAL_parameters.tex_h * sizeof(rgb_t*) + GLOBAL_parameters.tex_h * GLOBAL_parameters.tex_w * 3;
 		GLOBAL_tex = realloc(GLOBAL_tex, GLOBAL_parameters.tex_size);
 
-		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + new_tex_h), i = 1; i < new_tex_h; i++)
+		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + GLOBAL_parameters.tex_h), i = 1; i < GLOBAL_parameters.tex_h; i++)
 			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_parameters.tex_w;   // uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
 	}
 }
