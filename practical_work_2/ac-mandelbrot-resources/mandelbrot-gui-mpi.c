@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <GL/freeglut.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -11,7 +12,7 @@
 typedef struct {unsigned char r, g, b;} rgb_t;
 
 typedef struct {
-	int color_rotate, height, invert, max_iter, refresh, saturation, tex_h, tex_size, tex_w, width;
+	int quit, color_rotate, height, invert, max_iter, refresh, saturation, tex_h, tex_size, tex_w, width;
 	double cx, cy, scale;
 } global_parameters_t;
 
@@ -21,6 +22,7 @@ MPI_Datatype PARAMETERS_TYPE; // global_parameters_t
 //global variables
 //(do not change from the defaults except if solicited in the work text)
 global_parameters_t GLOBAL_parameters = {
+	   0,  // int GLOBAL_parameters.quit = 0;
 	   0,  // int GLOBAL_parameters.color_rotate = 0;
 	   0,  // int GLOBAL_parameters.height;
 	   0,  // int GLOBAL_parameters.invert = 0;
@@ -165,7 +167,7 @@ void calc_mandel(){
 			*(unsigned short*)px = iter;
 		}
 	}
-	
+
 	MPI_Allreduce(&min, &min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
 	MPI_Allreduce(&max, &max, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
@@ -211,6 +213,10 @@ void alloc_tex(){
 int set_texture(){
 	MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
 	
+	if (GLOBAL_parameters.quit){
+		
+		return 0;
+	}
 	if (GLOBAL_parameters.refresh) alloc_tex();
 	
 	calc_mandel();
@@ -272,10 +278,17 @@ void keypress(unsigned char key, int x, int y)
 	
 	switch(key) {
 	case 'q': 
+			 glutLeaveMainLoop();
              glFinish();
              glutDestroyWindow(GLOBAL_gwin);
              free(GLOBAL_tex);
-             return;
+			 GLOBAL_parameters.quit = 1;
+			 MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
+			 MPI_Finalize();
+			//  exit(0);
+			 // exit glut main loop and back to main
+			 
+			 return;
 	
 	case 27: // Esc
 	         GLOBAL_parameters.scale = 1./256;
@@ -382,13 +395,13 @@ void init_gfx(int *c, char **v){
 void setup_parameter_type(){
     int blockcounts[2]; MPI_Aint offsets[2]; MPI_Datatype oldtypes[2];
 	// setup blockcounts and oldtypes 
-	blockcounts[0] = 10; oldtypes[0] = MPI_INT; 
+	blockcounts[0] = 11; oldtypes[0] = MPI_INT; 
 	blockcounts[1] = 3; oldtypes[1] = MPI_DOUBLE; 
 	
 	// setup displacements
 	global_parameters_t parameters; MPI_Aint base_address;
 	MPI_Get_address(&parameters, &base_address); 
-	MPI_Get_address(&parameters.color_rotate, &offsets[0]); 
+	MPI_Get_address(&parameters.quit, &offsets[0]); 
 	MPI_Get_address(&parameters.cx, &offsets[1]);
 
 	offsets[0] = MPI_Aint_diff(offsets[0], base_address);
@@ -417,6 +430,7 @@ int main(int c, char **v){
 	else{
 		while (set_texture());
 	}
+	printf("rank %d: done\n", GLOBAL_rank);
 	MPI_Type_free(&PARAMETERS_TYPE);
 	MPI_Finalize();
 	return 0;
