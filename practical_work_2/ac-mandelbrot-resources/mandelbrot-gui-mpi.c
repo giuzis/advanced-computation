@@ -22,7 +22,7 @@ MPI_Datatype PARAMETERS_TYPE; // global_parameters_t
 //(do not change from the defaults except if solicited in the work text)
 global_parameters_t GLOBAL_parameters = {
 	   0,  // int GLOBAL_parameters.color_rotate = 0;
-	 512,  // int GLOBAL_parameters.height = 512;
+	   0,  // int GLOBAL_parameters.height;
 	   0,  // int GLOBAL_parameters.invert = 0;
 	 256,  // int GLOBAL_parameters.max_iter = 256;
 	   1,  // int GLOBAL_parameters.refresh = 1;
@@ -30,7 +30,7 @@ global_parameters_t GLOBAL_parameters = {
 	   0,  // int GLOBAL_parameters.tex_h;
 	   0,  // int GLOBAL_parameters.tex_size = 0;
 	   0,  // int GLOBAL_parameters.tex_w;
-	 512,  // int GLOBAL_parameters.width = 512;
+	   0,  // int GLOBAL_parameters.width;
 	-0.6,  // double GLOBAL_parameters.cx = -.6;
 	   0,  // double GLOBAL_parameters.cy = 0;
   1./256   // double GLOBAL_parameters.scale = 1;
@@ -134,17 +134,18 @@ void calc_mandel(){
 	double zx, zy, zx2, zy2;
 	rgb_t *px;
 
-	int height = (
-		(GLOBAL_parameters.height / GLOBAL_numtasks) 
-		+ ((GLOBAL_parameters.height % GLOBAL_numtasks) * (GLOBAL_rank == 0)) 
-	);
+	int height = (GLOBAL_parameters.height / GLOBAL_numtasks);
+	int rest = (GLOBAL_parameters.height % GLOBAL_numtasks);
 
-	for (i = 0; i < height; i++) {
+	for (i = 0; i < height + rest * (!GLOBAL_rank); i++) {
 		px = GLOBAL_tex[i];
-		double y = (
-			(i + (GLOBAL_rank * height) - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy);
+		double y = ((
+				(GLOBAL_rank * height) + rest * (GLOBAL_rank > 0)
+				- GLOBAL_parameters.height / 2 + i
+			) * GLOBAL_parameters.scale + GLOBAL_parameters.cy
+		);
 		for (j = 0; j  < GLOBAL_parameters.width; j++, px++) {
-			double x = (j - GLOBAL_parameters.width/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
+			double x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
 			int iter = 0;
  
 			zx = hypot(x - .25, y);
@@ -163,15 +164,16 @@ void calc_mandel(){
 			*(unsigned short *)px = iter;
 		}
 	}
-	for (i = 0; i < height; i++){
+	for (i = 0; i < height + rest * (!GLOBAL_rank); i++){
 		px = GLOBAL_tex[i];
 		for (j = 0; j  < GLOBAL_parameters.width; j++, px++)
 			hsv_to_rgb(*(unsigned short*)px, min, max, px);			
 	}
 
 	int size = height * GLOBAL_parameters.width * 3;
+
 	if (GLOBAL_rank == 0)
-		MPI_Gather(MPI_IN_PLACE, -1, NULL, GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+		MPI_Gather(MPI_IN_PLACE, -1, NULL, GLOBAL_tex[rest], size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 	else
 		MPI_Gather(GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, NULL, -1, NULL, 0, MPI_COMM_WORLD);
 }
