@@ -131,21 +131,22 @@ void hsv_to_rgb(int hue, int min, int max, rgb_t *p)
 ////////////////////////////////////////////////////////////////////////
 void calc_mandel(){	
 	int min = GLOBAL_parameters.max_iter, max = 0, i, j;
-	double zx, zy, zx2, zy2;
+	long double x, y, zx, zy, zx2, zy2;
 	rgb_t *px;
 
 	int height = (GLOBAL_parameters.height / GLOBAL_numtasks);
 	int rest = (GLOBAL_parameters.height % GLOBAL_numtasks);
 
-	for (i = 0; i < height + rest * (!GLOBAL_rank); i++) {
+	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++) {
 		px = GLOBAL_tex[i];
-		double y = ((
-				(GLOBAL_rank * height) + rest * (GLOBAL_rank > 0)
-				- GLOBAL_parameters.height / 2 + i
+		*px = (rgb_t){0, 0, 0};
+		y = ((
+				(GLOBAL_rank * height) 
+				+ i - GLOBAL_parameters.height / 2
 			) * GLOBAL_parameters.scale + GLOBAL_parameters.cy
 		);
 		for (j = 0; j  < GLOBAL_parameters.width; j++, px++) {
-			double x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
+			x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
 			int iter = 0;
  
 			zx = hypot(x - .25, y);
@@ -161,10 +162,14 @@ void calc_mandel(){
 			}
 			if (iter < min) min = iter;
 			if (iter > max) max = iter;
-			*(unsigned short *)px = iter;
+			*(unsigned short*)px = iter;
 		}
 	}
-	for (i = 0; i < height + rest * (!GLOBAL_rank); i++){
+	
+	MPI_Allreduce(&min, &min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(&max, &max, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++){
 		px = GLOBAL_tex[i];
 		for (j = 0; j  < GLOBAL_parameters.width; j++, px++)
 			hsv_to_rgb(*(unsigned short*)px, min, max, px);			
