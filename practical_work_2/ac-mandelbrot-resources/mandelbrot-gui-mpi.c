@@ -143,7 +143,7 @@ void calc_mandel(){
 		px = GLOBAL_tex[i];
 		*px = (rgb_t){0, 0, 0};
 		y = ((
-				(GLOBAL_rank * height) 
+				(GLOBAL_rank * height) + (rest * (GLOBAL_rank != 0))
 				+ i - GLOBAL_parameters.height / 2
 			) * GLOBAL_parameters.scale + GLOBAL_parameters.cy
 		);
@@ -164,7 +164,7 @@ void calc_mandel(){
 			}
 			if (iter < min) min = iter;
 			if (iter > max) max = iter;
-			*(unsigned short*)px = iter;
+			*(unsigned short*)px = iter + 20*GLOBAL_rank;
 		}
 	}
 
