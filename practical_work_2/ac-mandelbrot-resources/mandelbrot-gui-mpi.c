@@ -22,20 +22,20 @@ MPI_Datatype PARAMETERS_TYPE; // global_parameters_t
 //global variables
 //(do not change from the defaults except if solicited in the work text)
 global_parameters_t GLOBAL_parameters = {
-	   0,  // int GLOBAL_parameters.quit = 0;
-	   0,  // int GLOBAL_parameters.color_rotate = 0;
-	   0,  // int GLOBAL_parameters.height;
-	   0,  // int GLOBAL_parameters.invert = 0;
-	 256,  // int GLOBAL_parameters.max_iter = 256;
-	   1,  // int GLOBAL_parameters.refresh = 1;
-	   1,  // int GLOBAL_parameters.saturation = 1;
-	   0,  // int GLOBAL_parameters.tex_h;
-	   0,  // int GLOBAL_parameters.tex_size = 0;
-	   0,  // int GLOBAL_parameters.tex_w;
-	   0,  // int GLOBAL_parameters.width;
-	-0.6,  // double GLOBAL_parameters.cx = -.6;
-	   0,  // double GLOBAL_parameters.cy = 0;
-  1./256   // double GLOBAL_parameters.scale = 1;
+	   0,  // int GLOBAL_quit = 0;
+	   0,  // int GLOBAL_color_rotate = 0;
+	   0,  // int GLOBAL_height;
+	   0,  // int GLOBAL_invert = 0;
+	 256,  // int GLOBAL_max_iter = 256;
+	   1,  // int GLOBAL_refresh = 1;
+	   1,  // int GLOBAL_saturation = 1;
+	   0,  // int GLOBAL_tex_h;
+	   0,  // int GLOBAL_tex_size = 0;
+	   0,  // int GLOBAL_tex_w;
+	   0,  // int GLOBAL_width;
+	-0.6,  // double GLOBAL_cx = -.6;
+	   0,  // double GLOBAL_cy = 0;
+  1./256   // double GLOBAL_scale = 1;
 };
 
 rgb_t **GLOBAL_tex = 0;
@@ -268,8 +268,7 @@ void mouseclick(int button, int state, int x, int y)
 }
 
 ////////////////////////////////////////////////////////////////////////
-void keypress(unsigned char key, int x, int y)
-{
+void keypress(unsigned char key, int x, int y){
 	static int zoomin_x=0, zoomin_y=1; // RUF
 	// Ruf: where to start fetching mouse coordinates from GLOBAL_zoomin
 	//      (first x coordinate is at GLOBAL_zoomin[0])
@@ -278,17 +277,13 @@ void keypress(unsigned char key, int x, int y)
 	
 	switch(key) {
 	case 'q': 
-			 glutLeaveMainLoop();
-             glFinish();
-             glutDestroyWindow(GLOBAL_gwin);
-             free(GLOBAL_tex);
+            //  glutDestroyWindow(GLOBAL_gwin);
+            //  glFinish();
+            //  free(GLOBAL_tex);
 			 GLOBAL_parameters.quit = 1;
 			 MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
-			 MPI_Finalize();
-			//  exit(0);
-			 // exit glut main loop and back to main
-			 
-			 return;
+			 glutLeaveMainLoop();
+			 break;
 	
 	case 27: // Esc
 	         GLOBAL_parameters.scale = 1./256;
@@ -346,8 +341,10 @@ void keypress(unsigned char key, int x, int y)
              keypress('q', -1, -1);
              return;
 	}
-	set_texture();
-	print_menu();
+	if (!GLOBAL_parameters.quit){
+		set_texture();
+		print_menu();
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -380,7 +377,7 @@ void init_gfx(int *c, char **v){
 	glutInit(c, v);
 	glutInitDisplayMode(GLUT_RGB);
 	glutInitWindowSize(GLOBAL_window_width, GLOBAL_window_height);
- 
+    
 	GLOBAL_gwin = glutCreateWindow("Mandelbrot");
 	glutDisplayFunc(render);
  
@@ -388,6 +385,7 @@ void init_gfx(int *c, char **v){
 	glutMouseFunc(mouseclick);
 	glutReshapeFunc(resize);
 	glGenTextures(1, &GLOBAL_texture);
+	glutSetOption( GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS); 
 	set_texture();
 }
 
@@ -431,6 +429,7 @@ int main(int c, char **v){
 		while (set_texture());
 	}
 	printf("rank %d: done\n", GLOBAL_rank);
+	free(GLOBAL_tex);
 	MPI_Type_free(&PARAMETERS_TYPE);
 	MPI_Finalize();
 	return 0;
