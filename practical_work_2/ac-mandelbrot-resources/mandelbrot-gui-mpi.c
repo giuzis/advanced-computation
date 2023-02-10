@@ -17,7 +17,6 @@ typedef struct {
 } global_parameters_t;
 
 MPI_Datatype PARAMETERS_TYPE; // global_parameters_t
-
 ////////////////////////////////////////////////////////////////////////
 //global variables
 //(do not change from the defaults except if solicited in the work text)
@@ -39,10 +38,8 @@ global_parameters_t GLOBAL_parameters = {
 };
 
 rgb_t **GLOBAL_tex = 0;
-
 int GLOBAL_gwin;
 GLuint GLOBAL_texture;
-
 // GLOBAL_zoomin contains the path (sequence of <x,y> mouse coordinates) to zoom in the fractal)
 #define GLOBAL_zoomin_num_pairs 36
 int GLOBAL_zoomin[GLOBAL_zoomin_num_pairs]={538,237,491,369,522,383,492,372,504,369,510,385,491,353,472,329,516,392,518,393,478,327,506,400,501,320,487,361,501,363,501,363,486,363,486,363};
@@ -50,9 +47,7 @@ int GLOBAL_zoomin[GLOBAL_zoomin_num_pairs]={538,237,491,369,522,383,492,372,504,
 int GLOBAL_window_width=1024;
 int GLOBAL_window_height=768;
 
-// GLOBAL mpi variables
 int GLOBAL_numtasks, GLOBAL_rank;
-
 ////////////////////////////////////////////////////////////////////////
 //function prototypes
 void render();
@@ -69,12 +64,9 @@ void calc_mandel();
 
 void print_menu();
 void screen_dump();
-
 ////////////////////////////////////////////////////////////////////////
 // function implementations
-
-void print_menu()
-{
+void print_menu(){
 	printf("\n\nkeys:\n\t"
 	"q: quit	\n\t"
 	"ESC: reset to initial frame\n\t"
@@ -90,8 +82,7 @@ void print_menu()
 }
 
 //////////////////////////////////////////////////////////////////////// 
-void screen_dump()
-{
+void screen_dump(){
 	static int dump=1;
 	char fn[100];
 	int i;
@@ -103,10 +94,8 @@ void screen_dump()
 	fclose(fp);
 	printf("%s written\n", fn);
 }
-
 ////////////////////////////////////////////////////////////////////////
-void hsv_to_rgb(int hue, int min, int max, rgb_t *p)
-{
+void hsv_to_rgb(int hue, int min, int max, rgb_t *p){
 	if (min == max) max = min + 1;
 	if (GLOBAL_parameters.invert) hue = max - (hue - min);
 	if (!GLOBAL_parameters.saturation) {
@@ -129,7 +118,6 @@ void hsv_to_rgb(int hue, int min, int max, rgb_t *p)
 	default:p->r = c; p->b = X;
 	}
 }
-
 ////////////////////////////////////////////////////////////////////////
 void calc_mandel(){	
 	int min = GLOBAL_parameters.max_iter, max = 0, i, j;
@@ -183,9 +171,7 @@ void calc_mandel(){
 ////////////////////////////////////////////////////////////////////////
 void alloc_tex(){
 	int i, ow = GLOBAL_parameters.tex_w, oh = GLOBAL_parameters.tex_h; //backup current texture dimensions
-	int tex_w = 1, tex_h = 1;
-
-	int new_height = GLOBAL_parameters.height;
+	int tex_w = 1, tex_h = 1, new_height = GLOBAL_parameters.height;
 
 	if (GLOBAL_rank != 0) new_height /= GLOBAL_numtasks; // get the height for each task that is not rank 0
 
@@ -203,15 +189,11 @@ void alloc_tex(){
 			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_parameters.tex_w;   // uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
 	}
 }
-
 ////////////////////////////////////////////////////////////////////////~
 int set_texture(){
 	MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
 	
-	if (GLOBAL_parameters.quit){
-		
-		return 0;
-	}
+	if (GLOBAL_parameters.quit) return 0;
 	if (GLOBAL_parameters.refresh) alloc_tex();
 	
 	calc_mandel();
@@ -224,13 +206,11 @@ int set_texture(){
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		render();
 	}
-
 	return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////
-void resize(int w, int h)
-{
+void resize(int w, int h){
 	GLOBAL_parameters.width = w;
 	GLOBAL_parameters.height = h;
  
@@ -239,10 +219,8 @@ void resize(int w, int h)
  
 	set_texture();
 }
-
 ////////////////////////////////////////////////////////////////////////
-void mouseclick(int button, int state, int x, int y)
-{
+void mouseclick(int button, int state, int x, int y){
 	if (state != GLUT_UP) return;
 	
 	GLOBAL_parameters.cx += (x - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale;
@@ -272,10 +250,7 @@ void keypress(unsigned char key, int x, int y){
 	
 	switch(key) {
 	case 'q': 
-            //  glutDestroyWindow(GLOBAL_gwin);
-            //  glFinish();
-            //  free(GLOBAL_tex);
-			 GLOBAL_parameters.quit = 1;
+             GLOBAL_parameters.quit = 1;
 			 MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
 			 glutLeaveMainLoop();
 			 break;
@@ -420,10 +395,8 @@ int main(int c, char **v){
 		print_menu();
 		glutMainLoop();
 	}
-	else{
-		while (set_texture());
-	}
-	printf("rank %d: done\n", GLOBAL_rank);
+	else while(set_texture());
+	
 	free(GLOBAL_tex);
 	MPI_Type_free(&PARAMETERS_TYPE);
 	MPI_Finalize();
