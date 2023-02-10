@@ -141,12 +141,7 @@ void calc_mandel(){
 
 	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++) {
 		px = GLOBAL_tex[i];
-		*px = (rgb_t){0, 0, 0};
-		y = ((
-				(GLOBAL_rank * height) + (rest * (GLOBAL_rank != 0))
-				+ i - GLOBAL_parameters.height / 2
-			) * GLOBAL_parameters.scale + GLOBAL_parameters.cy
-		);
+		y = ((GLOBAL_rank * height) + (rest * (GLOBAL_rank != 0)) + i - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy;
 		for (j = 0; j  < GLOBAL_parameters.width; j++, px++) {
 			x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
 			int iter = 0;
@@ -164,7 +159,7 @@ void calc_mandel(){
 			}
 			if (iter < min) min = iter;
 			if (iter > max) max = iter;
-			*(unsigned short*)px = iter + 20*GLOBAL_rank;
+			*(unsigned short*)px = iter;
 		}
 	}
 
