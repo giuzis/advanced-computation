@@ -48,6 +48,8 @@ int GLOBAL_window_width=1024;
 int GLOBAL_window_height=768;
 
 int GLOBAL_numtasks, GLOBAL_rank;
+int ow = 0, oh =0; //backup current texture dimensions
+	
 ////////////////////////////////////////////////////////////////////////
 //function prototypes
 void render();
@@ -170,8 +172,7 @@ void calc_mandel(){
 
 ////////////////////////////////////////////////////////////////////////
 void alloc_tex(){
-	int i, ow = GLOBAL_parameters.tex_w, oh = GLOBAL_parameters.tex_h; //backup current texture dimensions
-	int tex_w = 1, tex_h = 1, new_height = GLOBAL_parameters.height;
+	int i, tex_w = 1, tex_h = 1, new_height = GLOBAL_parameters.height;
 
 	if (GLOBAL_rank != 0) new_height /= GLOBAL_numtasks; // get the height for each task that is not rank 0
 
@@ -182,6 +183,7 @@ void alloc_tex(){
 	GLOBAL_parameters.tex_h = tex_h;
 
 	if (GLOBAL_parameters.tex_h != oh || GLOBAL_parameters.tex_w != ow) { // if the dimensions are the different than before, realocate
+		ow = GLOBAL_parameters.tex_w; oh = GLOBAL_parameters.tex_h;
 		GLOBAL_parameters.tex_size = GLOBAL_parameters.tex_h * sizeof(rgb_t*) + GLOBAL_parameters.tex_h * GLOBAL_parameters.tex_w * 3;
 		GLOBAL_tex = realloc(GLOBAL_tex, GLOBAL_parameters.tex_size);
 
