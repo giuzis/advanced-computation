@@ -48,7 +48,8 @@ int GLOBAL_window_width=1024;
 int GLOBAL_window_height=768;
 
 int GLOBAL_numtasks, GLOBAL_rank;
-int ow = 0, oh =0; //backup current texture dimensions
+int ow = 0, oh = 0;
+double starttime, endtime;
 	
 ////////////////////////////////////////////////////////////////////////
 //function prototypes
@@ -69,20 +70,21 @@ void screen_dump();
 ////////////////////////////////////////////////////////////////////////
 // function implementations
 void print_menu(){
-	printf("\n\nkeys:\n\t"
-	"q: quit	\n\t"
-	"ESC: reset to initial frame\n\t"
-	"r: color rotation\n\t"
-	"c: monochrome\n\t"
-	"s: screen dump\n\t"
-	"<, >: decrease/increase max iteration\n\t"
-	"I: max iteration=4096\n\t"
-	"i: max iteration=128\n\t"
-	"mouse buttons to zoom\n\t"
-	"z: automatic zoom in (one step)\n\t"
-	"Z: automatic zoom in (all steps)\n");
+	printf(
+		"\n\nkeys:\n\t"
+		"q: quit	\n\t"
+		"ESC: reset to initial frame\n\t"
+		"r: color rotation\n\t"
+		"c: monochrome\n\t"
+		"s: screen dump\n\t"
+		"<, >: decrease/increase max iteration\n\t"
+		"I: max iteration=4096\n\t"
+		"i: max iteration=128\n\t"
+		"mouse buttons to zoom\n\t"
+		"z: automatic zoom in (one step)\n\t"
+		"Z: automatic zoom in (all steps)\n"
+	);
 }
-
 //////////////////////////////////////////////////////////////////////// 
 void screen_dump(){
 	static int dump=1;
@@ -123,7 +125,7 @@ void hsv_to_rgb(int hue, int min, int max, rgb_t *p){
 ////////////////////////////////////////////////////////////////////////
 void calc_mandel(){	
 	int min = GLOBAL_parameters.max_iter, max = 0, i, j;
-	long double x, y, zx, zy, zx2, zy2;
+	double x, y, zx, zy, zx2, zy2;
 	rgb_t *px;
 
 	int height = (GLOBAL_parameters.height / GLOBAL_numtasks);
@@ -300,15 +302,16 @@ void keypress(unsigned char key, int x, int y){
              break;
 
 	case 'Z':// simulate many mouse clicks in order to dive fully in zoomin
-             GLOBAL_parameters.refresh=1; // use 0 to avoid refreshing all but the last one
-             for (zoomin_x=0, zoomin_y=1; zoomin_x < GLOBAL_zoomin_num_pairs; zoomin_x+=2, zoomin_y +=2) {
+			 GLOBAL_parameters.refresh=1; // use 0 to avoid refreshing all but the last one
+  			 starttime = MPI_Wtime();
+			 for (zoomin_x=0, zoomin_y=1; zoomin_x < GLOBAL_zoomin_num_pairs; zoomin_x+=2, zoomin_y +=2) {
                  if (zoomin_x == GLOBAL_zoomin_num_pairs-2) GLOBAL_parameters.refresh=1;
                  mouseclick(GLUT_LEFT_BUTTON, GLUT_UP, GLOBAL_zoomin[zoomin_x], GLOBAL_zoomin[zoomin_y]); 					
              }
-
+			 endtime = MPI_Wtime();
+			 printf("The total time spent was %f\n", endtime-starttime);	
              // simulate case 's'
              keypress('s', -1, -1);
-              
              // simulate case 'q'
              keypress('q', -1, -1);
              return;
