@@ -25,7 +25,7 @@ global_parameters_t GLOBAL_parameters = {
 	   0,  // int GLOBAL_color_rotate = 0;
 	   0,  // int GLOBAL_height;
 	   0,  // int GLOBAL_invert = 0;
-	 256,  // int GLOBAL_max_iter = 256;
+	 4096,  // int GLOBAL_max_iter = 256;
 	   1,  // int GLOBAL_refresh = 1;
 	   1,  // int GLOBAL_saturation = 1;
 	   0,  // int GLOBAL_tex_h;

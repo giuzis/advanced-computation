@@ -1,38 +1,47 @@
+// mpirun -np 2 --hostfile localhost.OPENMPI ./mandelbrot-gui-mpi.exe
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+// #include <GL/freeglut.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
+#include <mpi.h>
 
 ////////////////////////////////////////////////////////////////////////
 //user defined datatypes
 typedef struct {unsigned char r, g, b;} rgb_t;
+
 typedef struct {
-	int color_rotate, height, invert, max_iter, refresh, saturation, tex_h, tex_size, tex_w, width;
+	int quit, color_rotate, height, invert, max_iter, refresh, saturation, tex_h, tex_size, tex_w, width;
 	double cx, cy, scale;
 } global_parameters_t;
 
-global_parameters_t GLOBAL_parameters = {
-	   0,  // int GLOBAL_parameters.color_rotate = 0;
-	 512,  // int GLOBAL_parameters.height = 512;
-	   0,  // int GLOBAL_parameters.invert = 0;
-	 256,  // int GLOBAL_parameters.max_iter = 256;
-	   1,  // int GLOBAL_parameters.refresh = 1;
-	   1,  // int GLOBAL_parameters.saturation = 1;
-	   0,  // int GLOBAL_parameters.tex_h;
-	   0,  // int GLOBAL_parameters.tex_size = 0;
-	   0,  // int GLOBAL_parameters.tex_w;
-	 512,  // int GLOBAL_parameters.width = 512;
-	-0.6,  // double GLOBAL_parameters.cx = -.6;
-	   0,  // double GLOBAL_parameters.cy = 0;
-   1./256   // double GLOBAL_parameters.scale = 1./256;
-};
+MPI_Datatype PARAMETERS_TYPE; // global_parameters_t
+
 ////////////////////////////////////////////////////////////////////////
 //global variables
 //(do not change from the defaults except if solicited in the work text)
+global_parameters_t GLOBAL_parameters = {
+	   0,  // int GLOBAL_quit = 0;
+	   0,  // int GLOBAL_color_rotate = 0;
+	   0,  // int GLOBAL_height;
+	   0,  // int GLOBAL_invert = 0;
+	 4096,  // int GLOBAL_max_iter = 256;
+	   1,  // int GLOBAL_refresh = 1;
+	   1,  // int GLOBAL_saturation = 1;
+	   0,  // int GLOBAL_tex_h;
+	   0,  // int GLOBAL_tex_size = 0;
+	   0,  // int GLOBAL_tex_w;
+	   0,  // int GLOBAL_width;
+	-0.6,  // double GLOBAL_cx = -.6;
+	   0,  // double GLOBAL_cy = 0;
+  1./256   // double GLOBAL_scale = 1;
+};
 
 rgb_t **GLOBAL_tex = 0;
+
 int GLOBAL_gwin;
 GLuint GLOBAL_texture;
 
@@ -43,6 +52,12 @@ int GLOBAL_zoomin[GLOBAL_zoomin_num_pairs]={538,237,491,369,522,383,492,372,504,
 int GLOBAL_window_width=1024;
 int GLOBAL_window_height=768;
 
+// GLOBAL mpi variables
+int GLOBAL_numtasks, GLOBAL_rank;
+int ow = 0, oh = 0;
+
+double starttime, endtime;
+
 ////////////////////////////////////////////////////////////////////////
 //function prototypes
 void render();
@@ -52,7 +67,7 @@ void resize(int w, int h);
 void init_gfx(int *c, char **v);
 
 void alloc_tex();
-void set_texture();
+int set_texture();
 
 void hsv_to_rgb(int hue, int min, int max, rgb_t *p);
 void calc_mandel();
@@ -66,17 +81,17 @@ void screen_dump();
 void print_menu()
 {
 	printf("\n\nkeys:\n\t"
-	"q: quit	\n\t"
-	"ESC: reset to initial frame\n\t"
-	"r: color rotation\n\t"
-	"c: monochrome\n\t"
-	"s: screen dump\n\t"
-	"<, >: decrease/increase max iteration\n\t"
-	"I: max iteration=4096\n\t"
-	"i: max iteration=128\n\t"
-	"mouse buttons to zoom\n\t"
-	"z: automatic zoom in (one step)\n\t"
-	"Z: automatic zoom in (all steps)\n");
+				"q: quit	\n\t"
+				"ESC: reset to initial frame\n\t"
+				"r: color rotation\n\t"
+				"c: monochrome\n\t"
+				"s: screen dump\n\t"
+				"<, >: decrease/increase max iteration\n\t"
+				"I: max iteration=4096\n\t"
+				"i: max iteration=128\n\t"
+				"mouse buttons to zoom\n\t"
+				"z: automatic zoom in (one step)\n\t"
+				"Z: automatic zoom in (all steps)\n");
 }
 
 //////////////////////////////////////////////////////////////////////// 
@@ -121,17 +136,19 @@ void hsv_to_rgb(int hue, int min, int max, rgb_t *p)
 }
 
 ////////////////////////////////////////////////////////////////////////
-void calc_mandel() 
-{	
-	int i, j, iter, min, max;
+void calc_mandel_old3(){	
+	int i, j, iter, min = GLOBAL_parameters.max_iter, max = 0;
 	rgb_t *px;
 	double x, y, zx, zy, zx2, zy2;
-	min = GLOBAL_parameters.max_iter; max = 0;
-	for (i = 0; i < GLOBAL_parameters.height; i++) {
+
+	int height = (GLOBAL_parameters.height / GLOBAL_numtasks);
+	int rest = (GLOBAL_parameters.height % GLOBAL_numtasks);
+
+	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++) {
 		px = GLOBAL_tex[i];
-		y = (i - GLOBAL_parameters.height/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy;
+		y = ((GLOBAL_rank * height) + (rest * (GLOBAL_rank != 0)) + i - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy;
 		for (j = 0; j  < GLOBAL_parameters.width; j++, px++) {
-			x = (j - GLOBAL_parameters.width/2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
+			x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
 			iter = 0;
  
 			zx = hypot(x - .25, y);
@@ -147,58 +164,163 @@ void calc_mandel()
 			}
 			if (iter < min) min = iter;
 			if (iter > max) max = iter;
-			*(unsigned short *)px = iter;
+			*(unsigned short*)px = iter;
 		}
 	}
- 
-	for (i = 0; i < GLOBAL_parameters.height; i++)
+
+	MPI_Allreduce(&min, &min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(&max, &max, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++)
 		for (j = 0, px = GLOBAL_tex[i]; j  < GLOBAL_parameters.width; j++, px++)
 			hsv_to_rgb(*(unsigned short*)px, min, max, px);			
+
+	int size = height * GLOBAL_parameters.width * 3;
+
+	if (GLOBAL_rank == 0)
+		MPI_Gather(MPI_IN_PLACE, -1, NULL, GLOBAL_tex[rest], size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+	else
+		MPI_Gather(GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, NULL, -1, NULL, 0, MPI_COMM_WORLD);
 }
 
-////////////////////////////////////////////////////////////////////////
-void alloc_tex()
-{
-	int i, ow = GLOBAL_parameters.tex_w, oh = GLOBAL_parameters.tex_h;
-	       //backup current texture dimensions
 
-    // if necessary, adjust texture dimensions to image dimensions 
-	for (GLOBAL_parameters.tex_w = 1; GLOBAL_parameters.tex_w < GLOBAL_parameters.width;  GLOBAL_parameters.tex_w <<= 1);
-	for (GLOBAL_parameters.tex_h = 1; GLOBAL_parameters.tex_h < GLOBAL_parameters.height; GLOBAL_parameters.tex_h <<= 1);
- 
-    // if texture dimensions were changed, realloc the texture memory block (GLOBAL_tex)
-	if (GLOBAL_parameters.tex_h != oh || GLOBAL_parameters.tex_w != ow) {
-	    GLOBAL_parameters.tex_size = GLOBAL_parameters.tex_h * sizeof(rgb_t*) + GLOBAL_parameters.tex_h * GLOBAL_parameters.tex_w * 3;
-		GLOBAL_tex = realloc(GLOBAL_tex, GLOBAL_parameters.tex_size);
-		// a texture has GLOBAL_parameters.tex_h pointers to the begining of each line,
-		// followed by the GLOBAL_parameters.tex_h lines of the image (bottom to top);
-        // each line is sequence of GLOBAL_parameters.tex_w*3 bytes (each pixel RGB values)
+void calc_mandel_old_2(){
+	int i, j, iter, min = GLOBAL_parameters.max_iter, max = 0;
+	rgb_t *px; 
+	double x, y, zx, zy, zx2, zy2;
+
+	int height = GLOBAL_parameters.height / GLOBAL_numtasks;
+	int rest = GLOBAL_parameters.height % GLOBAL_numtasks;
 	
-		// update pointers in the beggining of the texture
-		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + GLOBAL_parameters.tex_h), i = 1; i < GLOBAL_parameters.tex_h; i++)
-			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_parameters.tex_w;
-			// uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
-    }
+	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++){
+		px = GLOBAL_tex[i];
+		y = ((GLOBAL_rank * height) + (rest * (GLOBAL_rank != 0)) + i - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy;
+		for (j = 0; j < GLOBAL_parameters.width; j++, px++){
+			x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
+			iter = 0;
+
+			zx = hypot(x - .25, y);
+			if (x < zx - 2 * zx * zx + .25) iter = GLOBAL_parameters.max_iter;
+			if ((x + 1) * (x + 1) + y * y < 1 / 16) iter = GLOBAL_parameters.max_iter;
+
+			zx = zy = zx2 = zy2 = 0;
+			for (; iter < GLOBAL_parameters.max_iter && zx2 + zy2 < 4; iter++){
+				zy = 2 * zx * zy + y;
+				zx = zx2 - zy2 + x;
+				zx2 = zx * zx;
+				zy2 = zy * zy;
+			}
+			if (iter < min) min = iter;
+			if (iter > max) max = iter;
+			*(unsigned short *)px = iter; 
+		}
+	}
+
+	MPI_Allreduce(&min, &min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(&max, &max, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+	for (i = 0; i < (height + (rest * (!GLOBAL_rank))); i++)
+		for (j = 0, px = GLOBAL_tex[i]; j < GLOBAL_parameters.width; j++, px++)
+			hsv_to_rgb(*(unsigned short *)px, min, max, px);
+
+	int size = height * GLOBAL_parameters.width * 3;
+
+	if (GLOBAL_rank == 0)
+		MPI_Gather(MPI_IN_PLACE, -1, NULL, GLOBAL_tex[rest], size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+	else
+		MPI_Gather(GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, NULL, -1, NULL, 0, MPI_COMM_WORLD);
+}
+
+void calc_mandel(){
+	int i, j, iter, min = GLOBAL_parameters.max_iter, max = 0;
+	rgb_t *px; 
+	double x, y, zx, zy, zx2, zy2;
+
+	int num_rows = GLOBAL_parameters.height / GLOBAL_numtasks;
+	int rest = GLOBAL_parameters.height % GLOBAL_numtasks;
+	int start = GLOBAL_rank * num_rows + rest * (GLOBAL_rank > 0);
+	int end = start + num_rows + rest * (GLOBAL_rank == 0);
+
+	for (i = start; i < end; i++){
+		px = GLOBAL_tex[i-start];
+		y = (i - GLOBAL_parameters.height / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cy;
+		for (j = 0; j < GLOBAL_parameters.width; j++, px++){
+			x = (j - GLOBAL_parameters.width / 2) * GLOBAL_parameters.scale + GLOBAL_parameters.cx;
+			iter = 0;
+
+			zx = hypot(x - .25, y);
+			if (x < zx - 2 * zx * zx + .25) iter = GLOBAL_parameters.max_iter;
+			if ((x + 1) * (x + 1) + y * y < 1 / 16) iter = GLOBAL_parameters.max_iter;
+
+			zx = zy = zx2 = zy2 = 0;
+			for (; iter < GLOBAL_parameters.max_iter && zx2 + zy2 < 4; iter++){
+				zy = 2 * zx * zy + y;
+				zx = zx2 - zy2 + x;
+				zx2 = zx * zx;
+				zy2 = zy * zy;
+			}
+			if (iter < min) min = iter;
+			if (iter > max) max = iter;
+			*(unsigned short *)px = iter; 
+		}
+	}
+
+	MPI_Allreduce(&min, &min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(&max, &max, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+	for (i = start; i < end; i++)
+		for (j = 0, px = GLOBAL_tex[i-start]; j < GLOBAL_parameters.width; j++, px++)
+			hsv_to_rgb(*(unsigned short *)px, min, max, px);
+
+	int size = num_rows * GLOBAL_parameters.width * 3;
+
+	if (GLOBAL_rank == 0)
+		MPI_Gather(MPI_IN_PLACE, -1, NULL, GLOBAL_tex[rest], size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+	else
+		MPI_Gather(GLOBAL_tex[0], size, MPI_UNSIGNED_CHAR, NULL, -1, NULL, 0, MPI_COMM_WORLD);
 }
 
 ////////////////////////////////////////////////////////////////////////
-void set_texture()
-{
-	if (GLOBAL_parameters.refresh)
-		alloc_tex();
+void alloc_tex(){
+	int i, tex_w = 1, tex_h = 1, new_height = GLOBAL_parameters.height;
 
+	if (GLOBAL_rank != 0) new_height /= GLOBAL_numtasks; // get the height for each task that is not rank 0
+
+	while(tex_w < GLOBAL_parameters.width) tex_w <<= 1; // smallest power of two >= width
+	while(tex_h < new_height) tex_h <<= 1; // smallest power of two >= height
+
+	GLOBAL_parameters.tex_w = tex_w;
+	GLOBAL_parameters.tex_h = tex_h;
+
+	if (GLOBAL_parameters.tex_h != oh || GLOBAL_parameters.tex_w != ow) { // if the dimensions are the different than before, realocate
+		ow = GLOBAL_parameters.tex_w; oh = GLOBAL_parameters.tex_h;
+		GLOBAL_parameters.tex_size = GLOBAL_parameters.tex_h * sizeof(rgb_t*) + GLOBAL_parameters.tex_h * GLOBAL_parameters.tex_w * 3;
+		GLOBAL_tex = realloc(GLOBAL_tex, GLOBAL_parameters.tex_size);
+
+		for (GLOBAL_tex[0] = (rgb_t *)(GLOBAL_tex + GLOBAL_parameters.tex_h), i = 1; i < GLOBAL_parameters.tex_h; i++)
+			GLOBAL_tex[i] = GLOBAL_tex[i - 1] + GLOBAL_parameters.tex_w;   // uses rgb_t* arithmetic pointer, where each unit corresponds to 3 bytes
+	}
+}
+
+
+////////////////////////////////////////////////////////////////////////~
+int set_texture(){
+	MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
+	
+	if (GLOBAL_parameters.quit) return 0;
+	if (GLOBAL_parameters.refresh) alloc_tex();
+	
 	calc_mandel();
- 
-	if (GLOBAL_parameters.refresh) {
+
+	if (GLOBAL_parameters.refresh && GLOBAL_rank == 0) {
 		glEnable(GL_TEXTURE_2D);
 		glBindTexture(GL_TEXTURE_2D, GLOBAL_texture);
-		glTexImage2D(GL_TEXTURE_2D, 0, 3, GLOBAL_parameters.tex_w, GLOBAL_parameters.tex_h,
-			0, GL_RGB, GL_UNSIGNED_BYTE, GLOBAL_tex[0]);
- 
+		glTexImage2D(GL_TEXTURE_2D, 0, 3, GLOBAL_parameters.tex_w, GLOBAL_parameters.tex_h, 0, GL_RGB, GL_UNSIGNED_BYTE, GLOBAL_tex[0]);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);             
 		render();
 	}
+	return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -236,8 +358,7 @@ void mouseclick(int button, int state, int x, int y)
 }
 
 ////////////////////////////////////////////////////////////////////////
-void keypress(unsigned char key, int x, int y)
-{
+void keypress(unsigned char key, int x, int y){
 	static int zoomin_x=0, zoomin_y=1; // RUF
 	// Ruf: where to start fetching mouse coordinates from GLOBAL_zoomin
 	//      (first x coordinate is at GLOBAL_zoomin[0])
@@ -249,7 +370,10 @@ void keypress(unsigned char key, int x, int y)
              glFinish();
              glutDestroyWindow(GLOBAL_gwin);
              free(GLOBAL_tex);
-             return;
+			 GLOBAL_parameters.quit = 1;
+			 MPI_Bcast(&GLOBAL_parameters, 1, PARAMETERS_TYPE, 0, MPI_COMM_WORLD);
+			//  glutLeaveMainLoop();
+			 return;
 	
 	case 27: // Esc
 	         GLOBAL_parameters.scale = 1./256;
@@ -295,10 +419,16 @@ void keypress(unsigned char key, int x, int y)
 
 	case 'Z':// simulate many mouse clicks in order to dive fully in zoomin
              GLOBAL_parameters.refresh=1; // use 0 to avoid refreshing all but the last one
+             
+			starttime = MPI_Wtime();
              for (zoomin_x=0, zoomin_y=1; zoomin_x < GLOBAL_zoomin_num_pairs; zoomin_x+=2, zoomin_y +=2) {
                  if (zoomin_x == GLOBAL_zoomin_num_pairs-2) GLOBAL_parameters.refresh=1;
                  mouseclick(GLUT_LEFT_BUTTON, GLUT_UP, GLOBAL_zoomin[zoomin_x], GLOBAL_zoomin[zoomin_y]); 					
              }
+			endtime = MPI_Wtime();
+			
+			printf("The total time spent was %f\n", endtime-starttime);
+             
 
              // simulate case 's'
              keypress('s', -1, -1);
@@ -307,8 +437,10 @@ void keypress(unsigned char key, int x, int y)
              keypress('q', -1, -1);
              return;
 	}
-	set_texture();
-	print_menu();
+	if (!GLOBAL_parameters.quit){
+		set_texture();
+		print_menu();
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -337,12 +469,11 @@ void render()
 
 ////////////////////////////////////////////////////////////////////////
 
-void init_gfx(int *c, char **v)
-{
+void init_gfx(int *c, char **v){
 	glutInit(c, v);
 	glutInitDisplayMode(GLUT_RGB);
 	glutInitWindowSize(GLOBAL_window_width, GLOBAL_window_height);
- 
+    
 	GLOBAL_gwin = glutCreateWindow("Mandelbrot");
 	glutDisplayFunc(render);
  
@@ -350,14 +481,52 @@ void init_gfx(int *c, char **v)
 	glutMouseFunc(mouseclick);
 	glutReshapeFunc(resize);
 	glGenTextures(1, &GLOBAL_texture);
+	// glutSetOption( GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS); 
 	set_texture();
 }
 
 ////////////////////////////////////////////////////////////////////////
-int main(int c, char **v)
-{
-	init_gfx(&c, v);
-	print_menu();
-	glutMainLoop();	
+void setup_parameter_type(){
+    int blockcounts[2]; MPI_Aint offsets[2]; MPI_Datatype oldtypes[2];
+	// setup blockcounts and oldtypes 
+	blockcounts[0] = 11; oldtypes[0] = MPI_INT; 
+	blockcounts[1] = 3; oldtypes[1] = MPI_DOUBLE; 
+	
+	// setup displacements
+	global_parameters_t parameters; MPI_Aint base_address;
+	MPI_Get_address(&parameters, &base_address); 
+	MPI_Get_address(&parameters.quit, &offsets[0]); 
+	MPI_Get_address(&parameters.cx, &offsets[1]);
+
+	offsets[0] = MPI_Aint_diff(offsets[0], base_address);
+	offsets[1] = MPI_Aint_diff(offsets[1], base_address);
+
+	// create structured derived data type
+	MPI_Type_create_struct(2, blockcounts, offsets, oldtypes, &PARAMETERS_TYPE);
+	MPI_Type_commit(&PARAMETERS_TYPE);
+}
+////////////////////////////////////////////////////////////////////////
+int main(int c, char **v){
+	// init mpi
+	MPI_Init(&c, &v);
+	MPI_Comm_size(MPI_COMM_WORLD, &GLOBAL_numtasks);
+	MPI_Comm_rank(MPI_COMM_WORLD, &GLOBAL_rank);
+	
+	// init parameters
+	setup_parameter_type();
+	printf("rank %d: done setup_parameter_type\n", GLOBAL_rank);
+	// create mpi datatype for struct
+	if (GLOBAL_rank == 0){
+		init_gfx(&c, v);
+		print_menu();
+		glutMainLoop();
+	}
+	else{
+		while (set_texture());
+	}
+	printf("rank %d: done\n", GLOBAL_rank);
+	free(GLOBAL_tex);
+	MPI_Type_free(&PARAMETERS_TYPE);
+	MPI_Finalize();
 	return 0;
 }
